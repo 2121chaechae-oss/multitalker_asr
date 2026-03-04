@@ -1,0 +1,17 @@
+[project]
+name = "multitalker-asr"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "cython>=3.2.4",
+    "nemo-toolkit[asr]>=2.7.0",
+    "numpy>=2.2.6",
+    "omegaconf>=2.3.0",
+    "packaging>=24.2",
+    "pyaudio>=0.2.14",
+    "setuptools>=82.0.0",
+    "torch>=2.10.0",
+    "torchaudio>=2.10.0",
+]
