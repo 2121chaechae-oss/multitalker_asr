@@ -73,6 +73,18 @@ import sys
 import torchaudio
 import json
 
+#kiosk용 소켓 통신
+import socket
+
+def recvall(sock, n):
+    data = bytearray()
+    while len(data) < n:
+        packet = sock.recv(n - len(data))
+        if not packet:
+            return None
+        data.extend(packet)
+    return bytes(data)
+
 # 정보성 로그 무시
 import logging
 from nemo.utils import logging as nemo_logging
@@ -237,8 +249,6 @@ def _disable_cuda_graph(asr_model):
 
 
 # 마이크 입력을 diar_model과 asr_model과 연결
-
-
 if __name__ =="__main__":
     asr_model, diar_model, device = load_models()
     cfg = OmegaConf.structured(MultitalkerTranscriptionConfig())
@@ -249,22 +259,44 @@ if __name__ =="__main__":
     SAMPLE_RATE = 16000
     CHUNK_SIZE = 17920 # 16000*1.12 = 17920 samples
     
+    '''
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16,
-                    channels=1,
-                    rate=SAMPLE_RATE,
+                    channels=2,
+                    rate=48000,
                     input=True,
-                    frames_per_buffer = CHUNK_SIZE)
-    print("[INFO] 마이크 입력을 시작합니다. Ctrl+C 로 종료할 수 있습니다.")
-    
+                    input_device_index=11,  # 마이크 장치 인덱스 (환경에 따라 다를 수 있음)
+                    frames_per_buffer = CHUNK_SIZE*3)
+    print("[INFO] 마이크 입력을 시작합니다. Ctrl+C 로 종료할 수 있습니다.") '''
+    # --- 새로운 네트워크 소켓 수신 코드 추가 ---
+    PORT = 9999
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('0.0.0.0', PORT))
+    server_socket.listen(1)
+    print(f"[INFO] 포트 {PORT}에서 노트북의 연결을 기다리는 중...")
+
+    conn, addr = server_socket.accept()
+    print(f"[INFO] 노트북({addr}) 연결 완료. 음성 수신을 시작합니다.")
+
+
+
     step_num = 0
     final_result=[]
     try:
         while True:
-            data = stream.read(CHUNK_SIZE, exception_on_overflow=False)
+            '''data = stream.read(CHUNK_SIZE*3, exception_on_overflow=False)'''
+            # --- 네트워크 소켓을 통한 음성 데이터 수신 ---
+            data = recvall(conn, CHUNK_SIZE*2)
+            if not data:
+                print("[INFO] 노트북에서 연결이 끊어졌습니다.")
+                break
+
             audio_np = np.frombuffer(data,dtype=np.int16).astype(np.float32)/32768.0 
             # 데이터 변환(Bytes-> numpy-> float32-> tensor)
-            
+            '''
+            audio_np = audio_np[0::2]  # 스테레오에서 왼쪽 채널만 사용 (환경에 따라 조정 필요)
+            audio_np = audio_np[0::3]
+            '''
             raw_audio = torch.from_numpy(audio_np).unsqueeze(0).to(device)
             raw_lengths = torch.tensor([raw_audio.shape[1]]).to(device)
             
